@@ -25,7 +25,7 @@ func main() {
 		log.Fatalf("Unable to read client secret file: %v", err)
 	}
 
-	config, err := google.ConfigFromJSON(b, gmail.GmailReadonlyScope)
+	config, err := google.ConfigFromJSON(b, gmail.MailGoogleComScope)
 	if err != nil {
 		log.Fatalf("Unable to parse client secret file to config: %v", err)
 	}
@@ -42,6 +42,7 @@ func main() {
 	pageToken := ""
 	pageCount := 1
 	totalMessages := 0
+	deletedCount := 0
 	for {
 		req := svc.Users.Messages.List(user).Q(fmt.Sprintf("from:%s", from))
 		if pageToken != "" {
@@ -52,8 +53,15 @@ func main() {
 			log.Fatalf("Unable to retrieve messages: %v", err)
 		}
 
-		fmt.Printf("Found %d messages from %s on page %d\n", len(r.Messages), from, pageCount)
+		//fmt.Printf("Found %d messages from %s on page %d\n", len(r.Messages), from, pageCount)
 		totalMessages += len(r.Messages)
+
+		for _, m := range r.Messages {
+			if err := deleteMessage(svc, user, m.Id); err != nil {
+				log.Fatalf("Unable to delete message %v: %v", m.Id, err)
+			}
+			deletedCount += 1
+		}
 
 		if r.NextPageToken == "" {
 			break
@@ -62,7 +70,13 @@ func main() {
 		pageCount += 1
 	}
 	fmt.Printf("Total messages from %s: %d\n", from, totalMessages)
+	fmt.Println("Deleted:", deletedCount)
+}
 
+func deleteMessage(svc *gmail.Service, user, messageId string) error {
+	fmt.Println("Deleting message", messageId)
+	err := svc.Users.Messages.Delete(user, messageId).Do()
+	return err
 }
 
 // Retrieve a token, saves the token, then returns the generated client.
