@@ -31,24 +31,38 @@ func main() {
 	}
 	client := getClient(config)
 
-	srv, err := gmail.New(client)
+	svc, err := gmail.New(client)
 	if err != nil {
 		log.Fatalf("Unable to retrieve Gmail client: %v", err)
 	}
 
 	user := "me"
-	r, err := srv.Users.Labels.List(user).Do()
-	if err != nil {
-		log.Fatalf("Unable to retrieve labels: %v", err)
+	// TODO pull into own method
+	from := "aws-marketing-email-replies@amazon.com" // TODO make this an arg to pass in. and list option
+	pageToken := ""
+	pageCount := 1
+	totalMessages := 0
+	for {
+		req := svc.Users.Messages.List(user).Q(fmt.Sprintf("from:%s", from))
+		if pageToken != "" {
+			req.PageToken(pageToken)
+		}
+		r, err := req.Do()
+		if err != nil {
+			log.Fatalf("Unable to retrieve messages: %v", err)
+		}
+
+		fmt.Printf("Found %d messages from %s on page %d\n", len(r.Messages), from, pageCount)
+		totalMessages += len(r.Messages)
+
+		if r.NextPageToken == "" {
+			break
+		}
+		pageToken = r.NextPageToken
+		pageCount += 1
 	}
-	if len(r.Labels) == 0 {
-		fmt.Println("No labels found.")
-		return
-	}
-	fmt.Println("Labels:")
-	for _, l := range r.Labels {
-		fmt.Printf("- %s\n", l.Name)
-	}
+	fmt.Printf("Total messages from %s: %d\n", from, totalMessages)
+
 }
 
 // Retrieve a token, saves the token, then returns the generated client.
